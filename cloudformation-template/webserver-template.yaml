@@ -1,0 +1,116 @@
+Description: This template deploys Apache webserver.
+Resources:
+  WebServerVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  WebServerSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WebServerVPC
+      CidrBlock: 10.0.0.0/24
+
+  WebServerIGW:
+    Type: AWS::EC2::InternetGateway
+
+  WebServerVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref WebServerVPC
+      InternetGatewayId: !Ref WebServerIGW
+
+  WebServerRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: "WebServerVPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref WebServerVPC
+
+  WebServerPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref WebServerRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref WebServerIGW
+
+  WebServerPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WebServerSubnet
+      RouteTableId: !Ref WebServerRouteTable
+
+  WebServerNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    DependsOn: "WebServerVPC"
+    Properties:
+      VpcId: !Ref WebServerVPC
+
+  WebServerNetworkACLEntryInbound:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref WebServerNetworkAcl
+      Protocol: -1
+      RuleAction: allow
+      RuleNumber: 100
+      CidrBlock: 0.0.0.0/0
+      PortRange:
+        From: -1
+        To: -1
+
+  WebServerNetworkACLEntryOutbound:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref WebServerNetworkAcl
+      Protocol: -1
+      RuleAction: allow
+      RuleNumber: 100
+      CidrBlock: 0.0.0.0/0
+      Egress: true
+
+  WebServerPublicSubnetNetworkAclAssociation:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      NetworkAclId: !Ref WebServerNetworkAcl
+      SubnetId: !Ref WebServerSubnet
+
+  WebSweverSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "WebSwever SG"
+      GroupName: "WebSwever_SG"
+      VpcId: !Ref WebServerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: '-1'
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  WebServerEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: "ami-026b57f3c383c2eec"
+      InstanceType: "t3.micro"
+      Monitoring: true
+      KeyName: "mykey"
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          GroupSet:
+            - !Ref WebSweverSecurityGroup
+          DeviceIndex: "0"
+          SubnetId: !Ref WebServerSubnet
+      UserData: 
+        Fn::Base64: !Sub |
+         #!/bin/bash
+         sudo yum update -y
+         sudo yum install -y httpd
+         sudo systemctl start httpd
+         sudo systemctl enable httpd

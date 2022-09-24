@@ -1,1 +1,1 @@
-aws cloudformation create-stack --stack-name $1 --template-body file://$2 --profile=udacity-nd
+aws cloudformation create-stack --stack-name $1 --template-body file://$2 # --profile=udacity-nd
